@@ -9,4 +9,4 @@ It works by having a small init script (in the case of AWS, provided as user-dat
 
 It's very much a work in progress, and is currently in flux between it's previous main focus for settig up Nomad-based clusters to K3s clusters.
 
-I guarantee that it is at least as polished an professional as Abed's Punch Kicker costume.
+I guarantee that it is at least as polished and professional as Abed's Punch Kicker costume.
