@@ -1,0 +1,58 @@
+#!/bin/sh
+
+TMACS_VERSION="1.1.0"
+TMACS_ALPINE_VERSION="alpine-3.11.6"
+TMACS_ARCH=`uname -m`
+TMACS_USERS="root alpine"
+
+if [ -f /etc/alpine-release ]; then
+    TMACS_OS="${TMACS_ALPINE_VERSION}"
+else
+    TMACS_OS="linux"
+fi
+ 
+TMACS_DIST_FILE="tmacs-${TMACS_VERSION}-${TMACS_OS}-${TMACS_ARCH}.tar.gz" 
+TMACS_DIST_URL="https://github.com/tsarna/uemacs/releases/download/v${TMACS_VERSION}/${TMACS_DIST_FILE}"
+
+echo "Downloading TMACS from ${TMACS_DIST_URL}"
+
+apk add curl
+
+(cd /tmp; curl -LO ${TMACS_DIST_URL})
+
+echo "Installing TMACS"
+echo
+
+(cd /; tar zxvf /tmp/${TMACS_DIST_FILE})
+echo
+
+for user in $TMACS_USERS; do
+    if id -u $user >/dev/null; then
+        echo "Installing .tmacsrc for $user"
+        D=`getent passwd $user | cut -d: -f6`
+        cp ../files/tmacs/tmacsrc $D/.tmacsrc
+        chown $user:$user $D/.tmacsrc
+
+        for file in .profile .bashrc; do
+            if [ ! -f $D/.profile ]; then
+                echo "Creating $D/$file"
+                touch $D/$file
+                chown $user:$user $D/$file
+            fi
+    
+            echo "Updating $D/$file"
+    
+            if ! grep -q 'export EDITOR=' $D/$file; then
+                echo 'export EDITOR=tmacs' >>$D/$file
+            fi
+    
+            if ! grep -q 'export VISUAL=' $D/$file; then
+                echo 'export VISUAL=tmacs' >>$D/$file
+            fi
+    
+            if ! grep -q 'alias e=' $D/$file; then
+                echo 'alias e=tmacs' >>$D/$file
+            fi
+        done
+    fi
+done

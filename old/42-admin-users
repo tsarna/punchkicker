@@ -1,0 +1,19 @@
+#!/bin/sh
+
+ROLE=`cat $CLOUD_LIB/iam-role`
+
+if [ "$ROLE" = "ShellNodeRole" ]; then
+    echo "Setting up personal accounts for admins"
+    
+    if ! id -u tsarna 2>/dev/null >/dev/null; then
+        echo "Creating tsarna user"
+        useradd -c "Ty Sarna" -d /home/tsarna -g users -M -N -p x -s /bin/bash \
+            -u 3000 -G wheel,abuild,docker tsarna
+    else
+        echo "Updating tsarna user"
+        usermod -c "Ty Sarna" -d /home/tsarna -g users -s /bin/bash \
+            -u 3000 -G wheel,abuild,docker tsarna
+    fi
+else
+    echo "Skipping admin user setup due to role $ROLE"
+fi

@@ -1,0 +1,35 @@
+#!/sbin/openrc-run
+name="Create MOTD"
+description="Create MOTD file with information about the host"
+
+depend() {
+        after hostname
+}
+
+start() {
+  . /etc/os-release
+  DC=`tr a-z A-Z </etc/datacenter`
+  HOSTNAME=`hostname -s`
+  X='#'
+  SIDELEN=2
+  SIDEGAP=2
+  SIDEX=`head -c ${SIDELEN} </dev/zero | tr '\0' "${X}"`
+  GAPX=`head -c ${SIDEGAP} </dev/zero | tr '\0' "${X}"`
+  GAP=`head -c ${SIDEGAP} </dev/zero | tr '\0' " "`
+  MIDDLE="${DC} - ${HOSTNAME} - ${PRETTY_NAME}"
+  MIDLENGTH="${#MIDDLE}"
+  TOPBOTX=`head -c ${MIDLENGTH} </dev/zero | tr '\0' "${X}"`
+  TOPBOTSPACES=`head -c ${MIDLENGTH} </dev/zero | tr '\0' " "`
+  TOPBOT="${SIDEX}${GAPX}${TOPBOTX}${GAPX}${SIDEX}"
+  TOPBOTGAP="${SIDEX}${GAP}${TOPBOTSPACES}${GAP}${SIDEX}"
+  SPACES=`head -c ${MIDLENGTH} </dev/zero | tr '\0' " "`
+
+  (
+    echo "${TOPBOT}"
+    echo "${TOPBOTGAP}"
+    echo "${SIDEX}${GAP}${MIDDLE}${GAP}${SIDEX}"
+    echo "${TOPBOTGAP}"
+    echo "${TOPBOT}"
+    echo
+  ) >/etc/motd
+}

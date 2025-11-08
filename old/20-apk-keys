@@ -1,0 +1,14 @@
+#!/bin/sh
+
+if [ -d ../files -a -d ../files/apk-keys ]; then
+    echo "Installing extra APK keys..."
+
+    (cd ../files/apk-keys; for f in *; do
+        echo $f
+	cp $f /etc/apk/keys
+	chown root:root /etc/apk/keys/$f
+	chmod 0644 /etc/apk/keys/$f
+    done)
+else
+    echo "No extra APK keys to install"
+fi

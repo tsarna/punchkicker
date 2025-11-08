@@ -1,0 +1,17 @@
+#!/bin/sh
+
+echo "Pre-creating standard groups"
+
+# Note: legacy groups kept to avoid potential GID conclicts with legacy files
+
+groupadd -f -g 1001 consul
+groupadd -f -g 1002 vault
+groupadd -f -g 1003 unbound
+groupadd -f -g 1004 docker
+groupadd -f -g 1005 coredns
+groupadd -f -g 1006 dhcp
+groupadd -f -g 1007 ecwiki
+groupadd -f -g 1008 sudo
+groupadd -f -g 1313 punchkicker
+groupadd -f -g 1883 mosquitto
+

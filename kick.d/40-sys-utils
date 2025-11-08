@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+
+import sys
+from punchkicker import env
+
+node = env.node
+
+# System utilities useful for debugging issues
+
+packages = [
+    "util-linux", "iproute2", "tcpdump", "bind-tools", "inetutils-telnet"
+]
+
+env.apk_add(*packages)

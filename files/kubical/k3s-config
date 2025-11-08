@@ -1,0 +1,11 @@
+#!/sbin/openrc-run
+name="k3s-config"
+description="/etc/rancher/k3s/config.yaml"
+
+depend() {
+        before k3s
+}
+
+start() {
+	/var/lib/kubical/generate_k3s_config.py	>/etc/rancher/k3s/config.yaml
+}

@@ -1,0 +1,102 @@
+#!/var/lib/kubical/venv/bin/python3
+"""
+Generate K3s configuration with AWS metadata.
+Outputs YAML to stdout for redirection to /etc/rancher/k3s/config.yaml
+"""
+
+import sys
+import platform
+from ec2_metadata import ec2_metadata
+import yaml
+
+
+def get_arch():
+    """Get normalized architecture name."""
+    machine = platform.machine()
+    arch_map = {
+        'x86_64': 'amd64',
+        'aarch64': 'arm64',
+        'armv7l': 'arm',
+    }
+    return arch_map.get(machine, machine)
+
+
+def parse_instance_type(instance_type):
+    """Parse instance type into family and size."""
+    parts = instance_type.split('.')
+    if len(parts) == 2:
+        return parts[0], parts[1]
+    return instance_type, 'unknown'
+
+
+def get_capacity_type():
+    """Determine if instance is spot or on-demand."""
+    try:
+        # This will return 'spot' for spot instances, or raise an exception for on-demand
+        lifecycle = ec2_metadata.instance_life_cycle
+        return 'spot' if lifecycle == 'spot' else 'on-demand'
+    except:
+        return 'on-demand'
+
+
+def generate_k3s_config():
+    """Generate K3s configuration dictionary."""
+    try:
+        # Fetch metadata
+        instance_id = ec2_metadata.instance_id
+        az = ec2_metadata.availability_zone
+        region = ec2_metadata.region
+        instance_type = ec2_metadata.instance_type
+        
+        # Derived values
+        arch = get_arch()
+        instance_family, instance_size = parse_instance_type(instance_type)
+        capacity_type = get_capacity_type()
+        provider_id = f"aws:///{az}/{instance_id}"
+        
+        # Build config
+        config = {
+            'secrets-encryption': True,
+            'kubelet-arg': [
+                f'provider-id={provider_id}',
+                'max-pods=110',
+                'kube-reserved=cpu=100m,memory=500Mi',
+                'system-reserved=cpu=100m,memory=500Mi',
+                'eviction-hard=memory.available<100Mi,nodefs.available<10%',
+            ],
+            'node-label': [
+                f'topology.kubernetes.io/region={region}',
+                f'topology.kubernetes.io/zone={az}',
+                f'beta.kubernetes.io/instance-type={instance_type}',
+                f'node.kubernetes.io/instance-type={instance_type}',
+                f'node.kubernetes.io/instance-family={instance_family}',
+                f'node.kubernetes.io/instance-size={instance_size}',
+                f'karpenter.sh/capacity-type={capacity_type}',
+                f'kubernetes.io/arch={arch}',
+                'kubernetes.io/os=linux',
+                # Legacy labels for backward compatibility
+                f'failure-domain.beta.kubernetes.io/region={region}',
+                f'failure-domain.beta.kubernetes.io/zone={az}',
+                f'beta.kubernetes.io/instance-type={instance_type}',
+            ],
+        }
+        
+        return config
+        
+    except Exception as e:
+        print(f"Error fetching EC2 metadata: {e}", file=sys.stderr)
+        print("Make sure you're running on an EC2 instance with IMDSv2 enabled.", file=sys.stderr)
+        sys.exit(1)
+
+
+def main():
+    """Main entry point."""
+    config = generate_k3s_config()
+    
+    # Output YAML to stdout
+    yaml_output = yaml.dump(config, default_flow_style=False, sort_keys=False)
+    print(yaml_output)
+
+
+if __name__ == '__main__':
+    main()

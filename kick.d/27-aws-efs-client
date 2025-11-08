@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+
+import sys
+from punchkicker import env
+
+node = env.node
+
+if node.cloud() != 'AWS':
+    print("Not running on AWS, skipping")
+    sys.exit(0)
+
+if "nfs-client" not in node.roles:
+    sys.exit(0)
+
+env.apk_add("efs-utils", "efs-utils-openrc")

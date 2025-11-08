@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+
+import sys
+from punchkicker import env
+
+node = env.node
+
+if "nfs-client" not in node.roles:
+    sys.exit(0)
+
+env.apk_add("nfs-utils")
+env.service_add("nfsmount")
+env.service_start("nfsmount")

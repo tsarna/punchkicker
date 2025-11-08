@@ -1,0 +1,158 @@
+#!/usr/bin/python3
+
+import sys, os, json, subprocess, re
+
+cloud_lib = os.environ.get("CLOUD_LIB")
+
+os.system("apk add py3-boto3 lsblk")
+
+import boto3
+
+with open('/etc/hostname') as f:
+    hostname = f.read().strip()
+
+with open(os.path.join(cloud_lib, "region")) as f:
+    region = f.read().strip()
+
+with open(os.path.join(cloud_lib, "instance-id")) as f:
+    instance_id = f.read().strip()
+
+swap_pattern = re.compile("%s-swap[^a-z]?.*" % hostname)
+data_pattern = re.compile("%s-data[^a-z]?.*" % hostname)
+
+ec2 = boto3.resource('ec2', region)
+instance = ec2.Instance(instance_id)
+
+volume_tags = {}
+for volume in instance.volumes.all():
+    tags = {}
+    for tag in volume.tags:
+        tags[tag['Key']] = tag['Value']
+
+    volume_tags[volume.id] = tags
+
+print(volume_tags)
+
+lsblk = json.loads(subprocess.check_output(['lsblk', '-J', '-O']))
+
+def process_root(path, blk, vol_name, vol_tags):
+    if 'children' in blk:
+        for part in blk['children']:
+            if part['mountpoint'] == '/':
+                path = part['path']
+                print("        / on %s (%s):" % (path, part.get('fstype', '?')))
+                label = part['label']
+                label_disk(part["path"], label, vol_name)
+    else:
+        print("        / on %s (%s):" % (path, blk.get('fstype', '?')))
+        label = blk['label']
+        label_disk(path, label, vol_name)
+
+    print("            OK\n")
+
+def label_disk(path, label, vol_name):
+    if label != vol_name:
+        run_with_print(["e2label", path, vol_name], indent=12)
+        print("            Updated partition label from '%s' to '%s'" % (label, vol_name))
+
+def process_data(path, blk, vol_name, vol_tags):
+    fstype = blk.get("fstype", False)
+    wanted_fstype = vol_tags.get("kubical-fstype", "ext4")
+
+    print("        %s on %s (%s):" % (vol_name, path, fstype or wanted_fstype))
+    if fstype is None:
+        print("            Formatting as %s:" % wanted_fstype)
+        run_with_print(["mkfs." + wanted_fstype, path], indent=16)
+        fstype = wanted_fstype
+
+    label_disk(path, blk.get("label"), vol_name)
+    
+    mountpoint = "/" + vol_name[len(hostname) + 1:]
+
+    if add_mount(mountpoint, label=vol_name, type=fstype, opts="defaults,nofail", fsck_passno=2):
+        print("            Updated/Added to fstab.")
+    else:
+        print("            Already present in /etc/fstab.")
+
+    env.mkdir_p(mountpoint)
+
+    if env.mount(mountpoint):
+        print("            Mounted %s" % mountpoint)
+    else:
+        print("            Already mounted.")
+    
+    print()
+
+def process_swap(path, blk, vol_name, vol_tags):
+    print("        %s on %s (swap):" % (vol_name, path))
+    
+    fstype = blk.get("fstype", False)
+    if fstype != "swap":
+        if fstype is None:
+            print("            Formatting as swap space:")
+            env.run_with_print(["mkswap", "-L", vol_name, path], indent=16)
+        else:
+            print("            *** Disk already has a fstype '%s' that is not 'swap'" % fstype)
+            print(blk)
+            sys.exit(1)
+
+    vol_name = get_swap_label(path)
+
+    if env.add_mount("swap", label=vol_name, type="swap", opts="swap"):
+        print("            Added to fstab.")
+        print("            Enabling swapping to %s on %s:" % (vol_name, path))
+        env.run_with_print(["swapon", path])
+        print("                OK")
+    else:
+        print("            Already present in /etc/fstab.")
+    
+    print()
+
+def get_swap_label(path):
+    out = subprocess.check_output(["swaplabel", path]).decode("utf8")
+    lines = [l.strip() for l in out.split("\n")]
+    lines = [l.split(":", 1) for l in lines if l.startswith("LABEL:")]
+    if len(lines) != 1:
+        raise ValueError("Found more than one label in swaplabel output:\n" + out)
+
+    return lines[0][1].strip()
+
+def run_with_print(self, cmd, indent=8):
+    sys.stdout.flush()
+    out = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode('utf8').strip()
+    if out:
+        print(self.indent_output(out, indent))
+    sys.stdout.flush()
+    return out
+
+def run_with_print(self, cmd, indent=8):
+    sys.stdout.flush()
+    out = subprocess.check_output(cmd, stderr=subprocess.STDOUT).decode('utf8').strip()
+    if out:
+        print(self.indent_output(out, indent))
+    sys.stdout.flush()
+    return out
+
+for blk in lsblk['blockdevices']:
+    path = blk['path']
+    serial = blk['serial']
+    label = blk.get('label')
+
+    volid = serial
+    if volid.startswith("vol") and not volid.startswith("vol-"):
+        volid = "vol-" + volid[3:]
+
+    vol_tags = volume_tags.get(volid, {})
+    vol_name = vol_tags.get("Name", "")
+
+    if vol_name is not None:
+        print("    %s on %s: \"%s\"" % (volid, path, vol_name))
+
+        if vol_name == hostname + "-root":
+            process_root(path, blk, vol_name, vol_tags)
+        elif data_pattern.fullmatch(vol_name):
+            process_data(path, blk, vol_name, vol_tags)
+        elif swap_pattern.fullmatch(vol_name):
+            process_swap(path, blk, vol_name, vol_tags)
+        else:
+            print("        Skipped")

@@ -1,0 +1,18 @@
+#!/bin/sh
+
+# Move Alpine homedir to /local in case /home will be a network mount
+
+set -e
+
+if [ -f /etc/alpine-release ]; then
+    apk add shadow
+
+    mkdir -p /local
+    chmod 755 /local
+
+    if [ ~alpine != /local/alpine ]; then
+        echo "Moving alpine user home directory to /local/alpine"
+        usermod -m -d /local/alpine alpine
+        exit $?
+    fi
+fi

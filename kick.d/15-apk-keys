@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+
+"""
+Add in optional additional APK trusted keys. Looks for a
+semicolon-delimited list of URLs in PUNCHKICKER_APK_KEY_URLS, or failing
+that in the tag punchkicker-apk-key-urls.
+
+Also copies anything in ../files/apk-keys
+"""
+
+import os
+from punchkicker import env
+from urllib.parse import urlparse, unquote
+from posixpath import basename
+
+apk_key_dir = "/etc/apk/keys"
+
+key_urls = env.get("PUNCHKICKER_APK_KEY_URLS")
+if key_urls is None:
+    key_urls = env.node.tag("punchkicker-apk-key-urls")
+
+if key_urls is not None:
+    key_urls = key_urls.split(";")
+
+    for key_url in key_urls:
+        url = urlparse(key_url)
+        filename = unquote(basename(url.path))
+        print("    Fetching APK Key %s:" % filename)
+        dest = os.path.join(apk_key_dir, filename)
+        env.download_url(key_url, dest)
+        print("        OK")
+
+apk_dir = os.path.join(env.get("KICK_FILES_DIR"), "apk-keys")
+if os.path.isdir(apk_dir):
+    print("     Installing extra APK keys from files directory...")
+
+    for key_file in os.listdir(apk_dir):
+        env.resource_file(os.path.join("apk-keys", key_file), "/etc/apk/keys",
+            mode=0o644, user="root", group="root")
+else:
+    print("        No extra APK keys to install")

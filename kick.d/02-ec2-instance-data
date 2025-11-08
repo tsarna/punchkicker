@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+
+from punchkicker import env
+
+env.pip_install("boto3")
+env.pip_install("ec2-metadata")
+
+import boto3, json
+from ec2_metadata import ec2_metadata
+
+fields = [
+    'account_id', 'ami_id', 'ami_launch_index', 'ami_manifest_path', 
+    'availability_zone', 'iam_info', 'instance_id',
+    'instance_identity_document', 'instance_profile_arn',
+    'instance_profile_id', 'instance_profile_name', 'instance_type',
+    'kernel_id', 'mac', 'network_interfaces', 'private_hostname',
+    'private_ipv4', 'public_hostname', 'public_ipv4', 'region',
+    'reservation_id', 'security_groups', 'user_data'
+]
+
+nic_fields = [
+    'device_number', 'interface_id', 'ipv4_associations', 'ipv6s',
+    'mac', 'owner_id', 'private_hostname', 'private_ipv4s',
+    'public_hostname', 'public_ipv4s', 'security_group_ids',
+    'security_groups', 'subnet_id', 'subnet_ipv4_cidr_block',
+    'subnet_ipv6_cidr_blocks', 'vpc_id', 'vpc_ipv4_cidr_block',
+    'vpc_ipv4_cidr_blocks', 'vpc_ipv6_cidr_blocks'
+]
+
+def metadata2dict(ec2_metadata):
+    data = {'cloud':'AWS'}
+
+    for field in fields:
+        v = getattr(ec2_metadata, field)
+        if v is not None:
+            if field == 'network_interfaces':
+                v = {mac: nic2dict(nic) for mac, nic in v.items()}
+            elif field == 'user_data':
+                v = v.decode('utf8')
+            data[field] = v
+
+    return data
+
+def nic2dict(nic):
+    data = {}
+
+    for field in nic_fields:
+        v = getattr(nic, field)
+        if v is not None:
+            data[field] = v
+
+    return data
+
+data = metadata2dict(ec2_metadata)
+
+# Get subnet ID of primary nic
+nic0 = data.get('network_interfaces', {}).get(data.get('mac'))
+if nic0 is not None:
+    subnet_id = nic0.get('subnet_id')
+    if subnet_id is not None:
+        data['subnet_id'] = subnet_id
+
+    vpc_id = nic0.get('vpc_id')
+    if vpc_id is not None:
+        data['vpc_id'] = vpc_id
+
+try:
+    ec2 = boto3.client('ec2', region_name=ec2_metadata.region)
+    instance = ec2.describe_instances(InstanceIds=[ec2_metadata.instance_id])['Reservations'][0]['Instances'][0]
+    instance_tags = instance.get('Tags', [])
+except:
+    tags = []
+data['instance_tags'] = instance_tags
+
+subnet_tags = []
+if 'subnet_id' in data:
+    try:
+        subnets = ec2.describe_subnets(SubnetIds=[data['subnet_id']])
+        subnet_tags = subnets['Subnets'][0].get('Tags', [])
+    except:
+        pass
+data['subnet_tags'] = subnet_tags
+
+vpc_tags = []
+if 'vpc_id' in data:
+    try:
+        vpcs = ec2.describe_vpcs(VpcIds=[data['vpc_id']])
+        vpc_tags = vpcs['Vpcs'][0].get('Tags', {})
+    except:
+        pass
+data['vpc_tags'] = vpc_tags
+
+# Create the set of tags from instance, subnet, vpc with the more specific ones overriding the later/higher ones
+merged_tags = {}
+for tagset in 'vpc_tags', 'subnet_tags', 'instance_tags':
+    for tag in data.get(tagset, []):
+        merged_tags[tag['Key']] = tag['Value']
+data['tags'] = merged_tags
+
+with open(env.path('{CLOUD_VAR}/node.json'), 'w') as f:
+    json.dump(data, f, indent=2)
+

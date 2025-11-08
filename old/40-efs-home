@@ -1,0 +1,20 @@
+#!/bin/sh
+
+ROLE=`cat $CLOUD_LIB/iam-role`
+
+if [ "$ROLE" = "ShellNodeRole" ]; then
+    MOUNT_LINE="${EFS_HOME_ID}:/	/home	efs	defaults	2	2"
+    
+    if ! grep -q "$MOUNT_LINE" /etc/fstab; then
+        echo "Adding fstab entry for /home"
+    
+        echo "$MOUNT_LINE" >>/etc/fstab
+    fi
+    
+    if ! mountpoint -q /home; then 
+        echo "Mounting /home"
+        mount /home
+    fi
+else
+    echo "Skipping EFS home directory setup due to role $ROLE"
+fi

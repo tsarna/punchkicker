@@ -1,0 +1,14 @@
+#!/bin/sh
+
+echo "Pre-creating standard users"
+
+# Note: legacy groups kept to avoid potential GID conclicts with legacy files
+
+useradd -c Consul -d /var/consul -g consul -M -N -p '!' -s /sbin/nologin -u 1001 consul
+useradd -c Vault -d /data/vault -g vault -M -N -p '!' -s /sbin/nologin -u 1002 vault
+useradd -c Unbound -d /etc/unbound -g unbound -M -N -p '!' -s /sbin/nologin -u 1003 unbound
+useradd -c Coredns -d /etc/coredns -g coredns -M -N -p '!' -s /sbin/nologin -u 1005 coredns
+useradd -c Dhcp -d /var/lib/dhcp -g dhcp -M -N -p '!' -s /sbin/nologin -u 1006 dhcp
+useradd -c "EC Wiki" -d /home/ecwiki -g ecwiki -M -N -p '!' -s /sbin/nologin -u 1007 ecwiki
+useradd -c "Punch Kicker" -d /run/punchkicker -g punchkicker -M -N -p '!' -s /sbin/nologin -u 1313 punchkicker
+useradd -c Mosquitto -d /home/mosquitto -g mosquitto -M -N -p '!' -s /sbin/nologin -u 1883 mosquitto

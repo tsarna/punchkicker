@@ -1,0 +1,8 @@
+#!/bin/sh
+
+. $CLOUD_LIB/tags.sh
+
+echo $IMDS_TAG_NAME >/etc/hostname
+hostname `cat /etc/hostname`
+
+echo "Set host name to `hostname`"

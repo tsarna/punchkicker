@@ -1,0 +1,17 @@
+#!/bin/sh
+
+echo "Setting up AWS CLI"
+
+apk add aws-cli
+
+mkdir -p $HOME/.aws
+
+cat >$HOME/.aws/config <<__EOF__
+[default]
+region = `cat $CLOUD_LIB/region`
+
+[profile node-role]
+region = `cat $CLOUD_LIB/region`
+role_arn = arn:aws:iam::`cat $CLOUD_LIB/account-id`:role/`cat $CLOUD_LIB/iam-role`
+credential_source = Ec2InstanceMetadata
+__EOF__

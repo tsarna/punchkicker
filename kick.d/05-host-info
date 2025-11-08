@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+
+import punchkicker
+
+# map of {filename : list of tags to try in order to get the contents of the file}
+files = {
+    '/etc/hostname' : ['hostname', 'Name'],
+    '/etc/datacenter' : ['punchkicker-dc']
+}
+
+node = punchkicker.env.node
+
+env_dict = punchkicker.env.dict()
+for filename, taglist in files.items():
+    filename = punchkicker.env.path(filename)
+    value = None
+    for tag in taglist:
+        value = node.tag(tag)
+        if value is not None:
+            break
+
+    if value is not None:
+        print("    %s: %s" % (filename, value))
+        with open(filename, "w") as f:
+            f.write(value + "\n")
+    else:
+        pass # warn if not found

@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+
+import sys
+from punchkicker import env
+
+env.apk_add("doas", "doas-sudo-shim")
+
+if "shell" in env.node.roles:
+    env.apk_add("doas-doc", "doas-sudo-shim-doc")

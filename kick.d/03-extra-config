@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+
+"""
+Adds downloads extra confguration from a URL given by tag punchkicker-extra-config
+or environment variable PUNCHKICKER_EXTRA_CONF.
+"""
+
+import os
+from punchkicker import env
+from urllib.parse import urlparse
+from posixpath import basename
+from time import ctime
+
+conf_file = env.path('{CLOUD_VAR}/conf.json')
+
+extra_config = env.node.tag("punchkicker-extra-config")
+if extra_config is None:
+    extra_config = env.get("PUNCHKICKER_EXTRA_CONF")
+
+if extra_config is not None:
+    url = urlparse(extra_config)
+    print("    Fetching extra config from %s:" % extra_config)
+    env.download_url(extra_config, conf_file)
+    print("        OK")

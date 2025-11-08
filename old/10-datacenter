@@ -1,0 +1,9 @@
+#!/bin/sh
+
+echo -n "Setting data center... "
+aws ec2 describe-vpcs --filters Name=vpc-id,Values=`cat $CLOUD_LIB/vpc-id` | jq '.Vpcs[0].Tags' >$CLOUD_LIB/vpc-tags.json
+aws ec2 describe-subnets --filters Name=subnet-id,Values=`cat $CLOUD_LIB/subnet-id` | jq '.Subnets[0].Tags' >$CLOUD_LIB/subnet-tags.json
+
+jq -r <$CLOUD_LIB/vpc-tags.json '.[] | select(.Key == "Name") | .Value' >/etc/datacenter
+
+cat /etc/datacenter

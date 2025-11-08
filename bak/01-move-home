@@ -1,0 +1,7 @@
+#!/bin/sh
+
+echo "Moving alpine use to local to allow /home EFS mount"
+
+mkdir /local
+chmod 755 /local
+usermod -m -d /local/alpine alpine

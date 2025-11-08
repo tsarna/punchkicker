@@ -1,0 +1,14 @@
+#!/bin/sh
+
+if [ -d ../files -a -d ../files/init.d -a -f ../files/init.d/mkmotd ]; then
+    echo "Installing mkmotd..."
+
+    cp ../files/init.d/mkmotd /etc/init.d
+    chown root:root /etc/init.d/mkmotd
+    chmod 0755 /etc/init.d/mkmotd
+
+    rc-update add mkmotd
+    rc-service mkmotd start
+
+    hostname `cat /etc/hostname`
+fi

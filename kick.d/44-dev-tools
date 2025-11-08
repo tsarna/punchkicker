@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+
+import sys
+from punchkicker import env
+
+node = env.node
+
+if "dev-tools" not in node.roles:
+    sys.exit(0)
+
+packages = [
+    "alpine-sdk", "atools", "go", "linux-headers", "docker", "github-cli"
+]
+
+env.apk_add(*packages)

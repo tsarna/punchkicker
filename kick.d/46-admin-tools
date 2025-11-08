@@ -1,0 +1,15 @@
+#!/usr/bin/env python3
+
+import sys
+from punchkicker import env
+
+node = env.node
+
+if "shell" not in node.roles:
+    sys.exit(0)
+
+packages = [
+    "ansible", "opentofu", "openldap"
+]
+
+env.apk_add(*packages)

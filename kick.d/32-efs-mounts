@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+
+"""
+Look for EFS filesystems and access points tagged with punchkicker-mount and
+create mounts for them. The value of the tag is the path on which to mount it.
+"""
+
+import sys, os, json, subprocess
+from punchkicker import env
+
+node = env.node
+
+if node.cloud() != 'AWS':
+    print("Not running on AWS, skipping")
+    sys.exit(0)
+
+if "efs-mounts" not in node.roles:
+    sys.exit(0)
+
+import boto3
+
+region = node.get('region')
+mounts = {}
+
+efs = boto3.client("efs", region)
+
+paginator = efs.get_paginator('describe_file_systems')
+for page in paginator.paginate():
+    for fs in page.get("FileSystems", []):
+        mountpoint = node.raw_tag("punchkicker-mount", None, fs.get("Tags"))
+        if mountpoint is not None:
+            mounts[mountpoint] = (fs["FileSystemId"], None)
+
+paginator = efs.get_paginator('describe_access_points')
+for page in paginator.paginate():
+    for ap in page.get("AccessPoints", []):
+        mountpoint = node.raw_tag("punchkicker-mount", None, ap.get("Tags"))
+        if mountpoint is not None:
+            mounts[mountpoint] = (ap["FileSystemId"], ap['AccessPointId'])
+
+if mounts:
+    env.service_add("netmount")
+
+    for mountpoint, (fs_id, access_point) in sorted(mounts.items()):
+        if access_point is None:
+            print("    Update fstab with %s on %s:" % (fs_id, mountpoint))
+            changed = env.add_mount(mountpoint, source=fs_id + ":/", type="efs", opts="_netdev,tls")
+        else:
+            print("    Update fstab with %s access point %s on %s:" % (fs_id, access_point, mountpoint))
+            changed = env.add_mount(mountpoint, source=fs_id + ":/", type="efs", opts="_netdev,tls,accesspoint=" + access_point)
+
+        if changed:
+            print("        ADDED")
+        else:
+            print("        Already present, no change.")
+
+    for mountpoint in sorted(mounts.keys()):
+        print("    Mount %s:" % mountpoint)
+
+        env.mkdir_p(mountpoint)
+
+        if not env.mount(mountpoint):
+            print("        Already mounted.")
+else:
+    print("    No tagged filesystems found.")

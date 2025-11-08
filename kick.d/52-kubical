@@ -1,0 +1,50 @@
+#!/usr/bin/env python3
+
+import sys
+from punchkicker import env
+
+node = env.node
+
+packages = []
+
+if "k3s-bin" in node.roles:
+    packages.append("k3s")
+
+if "kubical-admin" in node.roles:
+    packages.extend(["k9s", "helm"])
+
+if packages:
+    env.apk_add(*packages)
+
+if "kubical-control" not in node.roles and "kubical-worker" not in node.roles:
+    sys.exit(0)
+
+env.mkdir_p("/etc/rancher/k3s")
+
+audit_log_dir="/var/lib/rancher/k3s/server/logs"
+env.mkdir_p(audit_log_dir)
+os.chmod(audit_log_dir, 0o700)
+
+env.resource_file("kubical/audit.yaml", "/var/lib/rancher/k3s/server", mode=0o755, user="root", group="root")
+env.resource_file("kubical/psa.yaml", "/var/lib/rancher/k3s/server", mode=0o755, user="root", group="root")
+
+if env.node.cloud() == 'AWS':
+    env.apk_add("python3", "py3-virtualenv")
+
+    env.mkdir_p("/var/lib/kubical")
+
+    env.run_with_print(["virtualenv", "/var/lib/kubical/venv"])
+    env.run_with_print(["/var/lib/kubical/venv/bin/pip3", "install", "requests", "boto3", "ec2_metadata", "pyyaml"])
+
+    env.resource_file("kubical/AWS-generate_k3s_config.py", "/var/lib/kubical/generate_k3s_config.py", mode=0o755, user="root", group="root")
+    env.resource_file("kubical/k3s-config", "/etc/init.d", mode=0o755, user="root", group="root")
+
+    env.service_add("k3s-config")
+    env.service_start("k3s-config")
+
+with open("/etc/sysctl.d/90-kubelet.conf", "w") as f:
+    f.write("""# https://docs.k3s.io/security/hardening-guide
+vm.panic_on_oom=0
+vm.overcommit_memory=1
+kernel.panic=10
+kernel.panic_on_oops=1""")

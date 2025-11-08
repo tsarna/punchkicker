@@ -1,0 +1,54 @@
+#!/bin/sh
+
+echo "Installing curl and jq"
+apk add curl jq
+
+echo "Getting IMDSv2 token"
+TOKEN=`curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
+BASE="http://169.254.169.254/2022-09-24/meta-data"
+TAGS="$BASE/tags/instance"
+H="X-aws-ec2-metadata-token: $TOKEN"
+
+echo -n "Getting instance ID... "
+echo `curl -s -H "$H" $BASE/instance-id` >$CLOUD_LIB/instance-id
+cat $CLOUD_LIB/instance-id
+
+echo -n "Getting IAM role... "
+echo `curl -s -H "$H" $BASE/iam/security-credentials` >$CLOUD_LIB/iam-role
+cat $CLOUD_LIB/iam-role
+
+echo -n "Getting Account ID... "
+curl -s -H "$H" $BASE/identity-credentials/ec2/info | jq -r '.AccountId' >$CLOUD_LIB/account-id
+cat $CLOUD_LIB/account-id
+
+echo -n "Getting Region... "
+echo `curl -s -H "$H" $BASE/placement/region` >$CLOUD_LIB/region
+cat $CLOUD_LIB/region
+
+echo -n "Getting Availability Zone... "
+echo `curl -s -H "$H" $BASE/placement/availability-zone` >$CLOUD_LIB/availability-zone
+cat $CLOUD_LIB/availability-zone
+
+echo -n "Getting VPC ID... "
+MACS=$BASE/network/interfaces/macs
+MAC=`curl -s -H "$H" $MACS | head -1 | tr -d /`
+echo `curl -s -H "$H" $MACS/$MAC/vpc-id` >$CLOUD_LIB/vpc-id
+cat $CLOUD_LIB/vpc-id
+
+echo -n "Getting Subnet ID... "
+echo `curl -s -H "$H" $MACS/$MAC/subnet-id` >$CLOUD_LIB/subnet-id
+cat $CLOUD_LIB/subnet-id
+
+echo "Listing tags"
+curl -s -H "$H" $TAGS >/tmp/tags
+
+echo "Fetching tags"
+while IFS="" read -r p || [ -n "$p" ]
+do
+  k=`echo $p | tr -cd [A-Za-z0-9-_]`
+  v=`curl -s -H "$H" $TAGS/$k`
+  k=`echo $k | tr a-z- A-Z_`
+  echo "IMDS_TAG_$k=$v"
+done < /tmp/tags >$CLOUD_LIB/tags.sh
+
+rm /tmp/tags

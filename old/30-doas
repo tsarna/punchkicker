@@ -1,0 +1,10 @@
+#!/bin/sh
+
+echo "Setting up doas and sudo shim"
+
+apk add doas doas-sudo-shim
+
+# optionally add docs
+case `cat $CLOUD_LIB/iam-role` in
+    ShellNodeRole) apk add doas-doc doas-sudo-shim-doc;;
+esac

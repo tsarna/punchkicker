@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+
+"""
+Add users and groups to the system.
+
+Note: some legacy users and groups are included to prevent reuse.
+"""
+
+default_groups = {
+    "consul" : { "gid" : 1001 },
+    "vault" : { "gid" : 1002 },
+    "unbound" : { "gid" : 1003 },
+    "docker" : { "gid" : 1004 },
+    "coredns" : { "gid" : 1005 },
+    "dhcp" : { "gid" : 1006 },
+    # 1007 reserved
+    "sudo" : { "gid" : 1008 },
+    "ldap" : { "gid" : 389 },
+    "punchkicker" : { "gid" : 1313 },
+    "mosquitto" : { "gid" : 1883 }
+}
+
+default_users = {
+    "consul" : { "uid" : 1001, "group" : "consul", "home" : "/var/consul"},
+    "vault" : { "uid" : 1002, "group" : "vault", "home" : "/data/vault"},
+    "unbound" : { "uid" : 1003, "group" : "unbound", "home" : "/etc/unbound"},
+    # 1004 reserved - docker
+    "coredns" : { "uid" : 1005, "group" : "coredns", "home" : "/etc/coredns"},
+    "dhcp" : { "uid" : 1006, "group" : "dhcp", "home" : "/var/lib/dhcp"},
+    # 1007 reserved
+    # 1008 reserved sudo
+    "ldap" : { "uid" : 389, "group" : "ldap", "home" : "/usr/lib/openldap"},
+    "punchkicker" : { "uid" : 1313, "group" : "punchkicker", "home" : "/run/punchkicker"},
+    "mosquitto" : { "uid" : 1883, "group" : "mosquitto", "home" : "/var/mosquitto"}
+}
+
+import os, pwd
+from punchkicker import env
+
+node = env.node
+
+env.apk_add("shadow")
+
+def add_group(name, opts):
+    args = ["/usr/sbin/groupadd", "-f"]
+    gid = opts.get("gid")
+    if gid is not None:
+        args.extend(["-g", str(gid)])
+    
+    args.append(name)
+    print("      %s" % name)
+    env.run_with_print(args)
+
+def add_user(name, opts):
+    try:
+        pwd.getpwnam(name)
+        print("      %s (existing)" % name)
+        return
+    except KeyError:
+        pass
+
+    args = ["/usr/sbin/useradd"]
+
+    comment = opts.get("comment")
+    if comment is not None:
+        args.extend(["-c", comment])
+
+    password = opts.get("password")
+    if password is not None:
+        args.extend(["-p", password])
+
+    uid = opts.get("uid")
+    if uid is not None:
+        args.extend(["-u", str(uid)])
+    
+    group = opts.get("group")
+    if group is not None:
+        args.extend(["-g", group])
+    
+    groups = opts.get("groups")
+    if groups is not None:
+        args.extend(["-G", ",".join(groups)])
+
+    home = opts.get("home")
+    if home is not None:
+        args.extend(["-d", home])
+    
+    shell = opts.get("shell")
+    if shell is not None:
+        args.extend(["-s", shell])
+
+    args.append(name)
+    print("      %s" % name)
+    env.run_with_print(args)
+
+groups = default_groups
+
+if groups:
+    print("    Adding groups:")
+    for name, opts in groups.items():
+        add_group(name, opts)
+
+users = default_users
+confs = node.get_conf("users")
+for conf in confs:
+    for name, data in conf.items():
+        have_role = False
+        for role in data.get("if-vm-role", []):
+            if role in node.roles:
+                have_role = True
+                break
+    
+        if have_role:
+            users[name] = data
+
+if users:
+    print("    Adding users:")
+    for name, opts in users.items():
+        add_user(name, opts)
